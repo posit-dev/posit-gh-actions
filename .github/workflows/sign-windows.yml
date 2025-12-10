@@ -1,0 +1,93 @@
+name: "Sign Windows Executable"
+
+on:
+  workflow_call:
+    inputs:
+      unsigned_artifact_name:
+        description: "Name of the artifact containing the unsigned executable"
+        required: true
+        type: string
+      signed_artifact_name:
+        description: "Name for the output artifact containing the signed executable"
+        required: true
+        type: string
+
+jobs:
+  sign-windows:
+    name: Sign Windows Executable
+    runs-on:
+      labels: [windows-latest-8x]
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SIGNING_ROOT: ${{ github.workspace }}\signing
+
+    steps:
+      - name: Create signing directory
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ${{ env.SIGNING_ROOT }}
+
+      - name: Download unsigned executable
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.unsigned_artifact_name }}
+          path: ${{ env.SIGNING_ROOT }}
+
+      - name: Setup Signing Certificate
+        shell: pwsh
+        env:
+          SM_CLIENT_CERT_FILE_B64: ${{ secrets.SM_CLIENT_CERT_FILE_B64 }}
+        run: |
+          New-Item -ItemType Directory -Force -Path ${{ env.SIGNING_ROOT }}\certificates
+          Set-Content -Path "${{ env.SIGNING_ROOT }}\certificates\codesign.txt" -Value $env:SM_CLIENT_CERT_FILE_B64
+          & certutil -decode "${{ env.SIGNING_ROOT }}\certificates\codesign.txt" "${{ env.SIGNING_ROOT }}\certificates\codesign.pfx"
+
+      - name: Setup Signing Variables
+        shell: pwsh
+        run: |
+          echo "SM_HOST=${{ secrets.SM_HOST }}" >> $env:GITHUB_ENV
+          echo "SM_API_KEY=${{ secrets.SM_API_KEY }}" >> $env:GITHUB_ENV
+          echo "SM_CLIENT_CERT_FILE=${{ env.SIGNING_ROOT }}\certificates\codesign.pfx" >> $env:GITHUB_ENV
+          echo "SM_CLIENT_CERT_PASSWORD=${{ secrets.SM_CLIENT_CERT_PASSWORD }}" >> $env:GITHUB_ENV
+          echo "SM_CLIENT_CERT_FINGERPRINT=${{ secrets.SM_CLIENT_CERT_FINGERPRINT }}" >> $env:GITHUB_ENV
+          echo "C:\Program Files (x86)\Windows Kits\10\App Certification Kit" >> $env:GITHUB_PATH
+          echo "C:\Program Files\DigiCert\DigiCert One Signing Manager Tools" >> $env:GITHUB_PATH
+
+      - name: Setup SMCTL KSP Tools for Windows
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://rstudio-buildtools.s3.amazonaws.com/posit-dev/smtools-windows-x64.msi" -OutFile "smtools-windows-x64.msi"
+          Start-Process -FilePath "msiexec.exe" -ArgumentList "/i", "smtools-windows-x64.msi", "/quiet", "/qn", "/log", "smtools-windows-x64.log" -Wait
+          Get-Content -Path "smtools-windows-x64.log"
+          & smksp_registrar.exe list
+          & smctl.exe keypair ls
+          & C:\Windows\System32\certutil.exe -csp "DigiCert Signing Manager KSP" -key -user
+          & smctl.exe windows certsync
+
+      - name: Sign executable using Signtool
+        shell: pwsh
+        run: |
+          $fingerprint = $env:SM_CLIENT_CERT_FINGERPRINT
+          $artifactRoot = "${{ env.SIGNING_ROOT }}"
+          $exeFile = Get-ChildItem -Path $artifactRoot -File -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+
+          if (-not $exeFile) {
+            Write-Error "No .exe file found in artifact"
+            exit 1
+          }
+
+          Write-Host "Signing $($exeFile.Name)"
+          & signtool.exe sign /sha1 "$fingerprint" /tr http://timestamp.digicert.com /td SHA256 /fd SHA256 "$($exeFile.FullName)"
+          & signtool.exe verify /v /pa "$($exeFile.FullName)"
+
+      - name: Clean Up
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path ${{ env.SIGNING_ROOT }}\certificates) { Remove-Item -Force -Recurse ${{ env.SIGNING_ROOT }}\certificates }
+
+      - name: Upload signed executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.signed_artifact_name }}
+          path: ${{ env.SIGNING_ROOT }}/*.exe
