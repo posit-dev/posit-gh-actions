@@ -16,7 +16,7 @@ jobs:
   sign-windows:
     name: Sign Windows Executable
     runs-on:
-      labels: [windows-latest-8x]
+      labels: [windows-latest]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       SIGNING_ROOT: ${{ github.workspace }}\signing
