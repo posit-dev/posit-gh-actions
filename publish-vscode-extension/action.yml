@@ -63,6 +63,9 @@ runs:
           fi
         else
           CMD=(ovsx publish "$EXTENSION_FILE" --pat "$INPUT_PAT" --registryUrl "$REGISTRY_URL")
+          if [[ "$SKIP_DUPLICATE" == "true" ]]; then
+            CMD+=(--skip-duplicate)
+          fi
         fi
 
         REDACTED_CMD="${CMD[*]}"
