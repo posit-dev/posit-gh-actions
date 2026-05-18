@@ -1,8 +1,8 @@
 # Publish VS Code Extension
 
-A composite GitHub Action to publish VS Code extensions to the [VS Marketplace](https://marketplace.visualstudio.com/) or the [Open VSX Registry](https://open-vsx.org/).
+A composite GitHub Action to publish a pre-built VS Code extension (`.vsix`) to the [VS Marketplace](https://marketplace.visualstudio.com/) or the [Open VSX Registry](https://open-vsx.org/).
 
-This is a drop-in replacement for [`HaaLeo/publish-vscode-extension@v2`](https://github.com/HaaLeo/publish-vscode-extension), implemented as a composite action with shell steps to avoid Node.js runtime version dependencies.
+This replaces [`HaaLeo/publish-vscode-extension@v2`](https://github.com/HaaLeo/publish-vscode-extension), implemented as a composite action with shell steps to avoid Node.js runtime version dependencies.
 
 ## Usage
 
@@ -12,6 +12,7 @@ This is a drop-in replacement for [`HaaLeo/publish-vscode-extension@v2`](https:/
 - uses: posit-dev/posit-gh-actions/publish-vscode-extension@main
   with:
     pat: ${{ secrets.VSCE_PAT }}
+    extensionFile: path/to/extension.vsix
     registryUrl: https://marketplace.visualstudio.com
 ```
 
@@ -21,28 +22,17 @@ This is a drop-in replacement for [`HaaLeo/publish-vscode-extension@v2`](https:/
 - uses: posit-dev/posit-gh-actions/publish-vscode-extension@main
   with:
     pat: ${{ secrets.OVSX_PAT }}
-```
-
-### Publish a pre-built VSIX
-
-```yaml
-- uses: posit-dev/posit-gh-actions/publish-vscode-extension@main
-  with:
-    pat: ${{ secrets.VSCE_PAT }}
-    registryUrl: https://marketplace.visualstudio.com
     extensionFile: path/to/extension.vsix
 ```
 
-### Package only (dry run)
+### Dry run (validate file exists, skip publishing)
 
 ```yaml
 - uses: posit-dev/posit-gh-actions/publish-vscode-extension@main
-  id: package
   with:
     pat: unused
+    extensionFile: path/to/extension.vsix
     dryRun: 'true'
-
-- run: echo "Packaged to ${{ steps.package.outputs.vsixPath }}"
 ```
 
 ## Inputs
@@ -50,43 +40,31 @@ This is a drop-in replacement for [`HaaLeo/publish-vscode-extension@v2`](https:/
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
 | `pat` | Personal access token | Yes | — |
-| `extensionFile` | Path to a pre-built `.vsix` file. Cannot be used with `packagePath`. | No | — |
-| `registryUrl` | Registry API base URL | No | `https://open-vsx.org` |
-| `packagePath` | Path to the extension source. Cannot be used with `extensionFile`. | No | `./` |
-| `baseContentUrl` | Base URL for relative links in README.md | No | — |
-| `baseImagesUrl` | Base URL for relative image links in README.md | No | — |
-| `yarn` | Use yarn instead of npm for packaging | No | `false` |
-| `dryRun` | Package the extension but skip publishing | No | `false` |
-| `noVerify` | Allow publishing extensions using proposed APIs | No | `false` |
-| `preRelease` | Mark as a pre-release version | No | `false` |
-| `dependencies` | Verify dependencies in node_modules. Set to `false` for pnpm or yarn PnP. | No | `true` |
+| `extensionFile` | Path to the `.vsix` file to publish | Yes | — |
+| `registryUrl` | Registry URL. Use `https://marketplace.visualstudio.com` for VS Marketplace. | No | `https://open-vsx.org` |
 | `skipDuplicate` | Fail silently if the version already exists | No | `false` |
-| `target` | Target architecture(s), space-separated | No | — |
+| `dryRun` | Skip publishing (useful for CI testing) | No | `false` |
 
 ## Outputs
 
 | Output | Description |
 |--------|-------------|
-| `vsixPath` | Path to the packaged `.vsix` file |
+| `vsixPath` | Path to the published `.vsix` file (same as `extensionFile` input) |
 
 ## Migrating from HaaLeo/publish-vscode-extension
 
-Replace:
+This action requires a pre-built `.vsix` file. If you were using `packagePath` with the HaaLeo action, add a packaging step before calling this action:
 
 ```yaml
-- uses: HaaLeo/publish-vscode-extension@v2
-  with:
-    pat: ${{ secrets.SOME_PAT }}
-    registryUrl: https://marketplace.visualstudio.com
-```
+- name: Package extension
+  run: |
+    npm install -g @vscode/vsce
+    cd path/to/extension
+    vsce package --out extension.vsix
 
-With:
-
-```yaml
 - uses: posit-dev/posit-gh-actions/publish-vscode-extension@main
   with:
-    pat: ${{ secrets.SOME_PAT }}
+    pat: ${{ secrets.VSCE_PAT }}
+    extensionFile: path/to/extension/extension.vsix
     registryUrl: https://marketplace.visualstudio.com
 ```
-
-All inputs and outputs are compatible. No other changes are needed.
