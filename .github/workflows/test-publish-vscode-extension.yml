@@ -3,95 +3,23 @@ name: Test publish-vscode-extension
 on:
   pull_request:
     paths:
-      - 'publish-vscode-extension/**'
+      - "publish-vscode-extension/**"
   push:
     branches: [main]
     paths:
-      - 'publish-vscode-extension/**'
+      - "publish-vscode-extension/**"
   workflow_dispatch:
 
 jobs:
-  test-dry-run-from-source:
-    name: 'Test: package from source (dry run)'
+  test-dry-run:
+    name: "Test: publish pre-built VSIX (dry run)"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-
-      - name: Publish (dry run)
-        id: publish
-        uses: ./publish-vscode-extension
-        with:
-          pat: fake-pat-for-testing
-          packagePath: publish-vscode-extension/tests/fixtures/sample-extension
-          dryRun: 'true'
-
-      - name: Verify VSIX was created
-        run: |
-          VSIX_PATH="${{ steps.publish.outputs.vsixPath }}"
-          echo "vsixPath=$VSIX_PATH"
-
-          if [[ ! -f "$VSIX_PATH" ]]; then
-            echo "::error::VSIX file not found at $VSIX_PATH"
-            exit 1
-          fi
-
-          echo "VSIX file exists at $VSIX_PATH"
-          ls -la "$VSIX_PATH"
-
-      - name: Verify VSIX filename format
-        run: |
-          VSIX_PATH="${{ steps.publish.outputs.vsixPath }}"
-          BASENAME=$(basename "$VSIX_PATH")
-          EXPECTED="test-extension-0.0.1.vsix"
-
-          if [[ "$BASENAME" != "$EXPECTED" ]]; then
-            echo "::error::Expected filename '$EXPECTED', got '$BASENAME'"
-            exit 1
-          fi
-
-          echo "Filename matches expected: $BASENAME"
-
-  test-dry-run-pre-release:
-    name: 'Test: package with pre-release flag (dry run)'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Publish pre-release (dry run)
-        id: publish
-        uses: ./publish-vscode-extension
-        with:
-          pat: fake-pat-for-testing
-          packagePath: publish-vscode-extension/tests/fixtures/sample-extension
-          dryRun: 'true'
-          preRelease: 'true'
-
-      - name: Verify VSIX was created
-        run: |
-          VSIX_PATH="${{ steps.publish.outputs.vsixPath }}"
-          if [[ ! -f "$VSIX_PATH" ]]; then
-            echo "::error::VSIX file not found at $VSIX_PATH"
-            exit 1
-          fi
-          echo "Pre-release VSIX created successfully at $VSIX_PATH"
-
-  test-dry-run-with-extension-file:
-    name: 'Test: publish pre-built VSIX (dry run)'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+          node-version: "24"
 
       - name: Pre-package the extension
         run: |
@@ -99,15 +27,15 @@ jobs:
           cd publish-vscode-extension/tests/fixtures/sample-extension
           vsce package --out test-extension-0.0.1.vsix
 
-      - name: Publish with extensionFile (dry run)
+      - name: Publish (dry run)
         id: publish
         uses: ./publish-vscode-extension
         with:
           pat: fake-pat-for-testing
           extensionFile: publish-vscode-extension/tests/fixtures/sample-extension/test-extension-0.0.1.vsix
-          dryRun: 'true'
+          dryRun: "true"
 
-      - name: Verify output path matches input
+      - name: Verify output path
         run: |
           VSIX_PATH="${{ steps.publish.outputs.vsixPath }}"
           EXPECTED="publish-vscode-extension/tests/fixtures/sample-extension/test-extension-0.0.1.vsix"
@@ -117,82 +45,65 @@ jobs:
             exit 1
           fi
 
-          echo "Output vsixPath correctly reflects the input extensionFile"
-
-  test-dry-run-no-dependencies:
-    name: 'Test: package with no-dependencies (dry run)'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Publish with dependencies=false (dry run)
-        id: publish
-        uses: ./publish-vscode-extension
-        with:
-          pat: fake-pat-for-testing
-          packagePath: publish-vscode-extension/tests/fixtures/sample-extension
-          dryRun: 'true'
-          dependencies: 'false'
-
-      - name: Verify VSIX was created
-        run: |
-          VSIX_PATH="${{ steps.publish.outputs.vsixPath }}"
           if [[ ! -f "$VSIX_PATH" ]]; then
             echo "::error::VSIX file not found at $VSIX_PATH"
             exit 1
           fi
-          echo "VSIX created with --no-dependencies flag: $VSIX_PATH"
 
-  test-missing-package-json:
-    name: 'Test: fail on missing package.json'
+          echo "VSIX file verified at $VSIX_PATH"
+
+  test-missing-extension-file:
+    name: "Test: fail on missing extensionFile"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "24"
 
-      - name: Attempt to package from empty directory
+      - name: Attempt to publish nonexistent file
         id: publish
         continue-on-error: true
         uses: ./publish-vscode-extension
         with:
           pat: fake-pat-for-testing
-          packagePath: publish-vscode-extension/tests/fixtures/nonexistent
-          dryRun: 'true'
+          extensionFile: nonexistent/path/extension.vsix
+          dryRun: "true"
 
       - name: Verify step failed
         run: |
           if [[ "${{ steps.publish.outcome }}" != "failure" ]]; then
-            echo "::error::Expected the step to fail for a missing package.json"
+            echo "::error::Expected the step to fail for a missing extensionFile"
             exit 1
           fi
-          echo "Correctly failed on missing package.json"
+          echo "Correctly failed on missing extensionFile"
 
   test-on-windows:
-    name: 'Test: package on Windows (dry run)'
+    name: "Test: publish on Windows (dry run)"
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "24"
+
+      - name: Pre-package the extension
+        run: |
+          npm install -g @vscode/vsce
+          cd publish-vscode-extension/tests/fixtures/sample-extension
+          vsce package --out test-extension-0.0.1.vsix
 
       - name: Publish (dry run)
         id: publish
         uses: ./publish-vscode-extension
         with:
           pat: fake-pat-for-testing
-          packagePath: publish-vscode-extension/tests/fixtures/sample-extension
-          dryRun: 'true'
+          extensionFile: publish-vscode-extension/tests/fixtures/sample-extension/test-extension-0.0.1.vsix
+          dryRun: "true"
 
-      - name: Verify VSIX was created
+      - name: Verify VSIX exists
         shell: bash
         run: |
           VSIX_PATH="${{ steps.publish.outputs.vsixPath }}"
@@ -200,31 +111,37 @@ jobs:
             echo "::error::VSIX file not found at $VSIX_PATH"
             exit 1
           fi
-          echo "VSIX created on Windows: $VSIX_PATH"
+          echo "VSIX verified on Windows: $VSIX_PATH"
 
   test-on-macos:
-    name: 'Test: package on macOS (dry run)'
+    name: "Test: publish on macOS (dry run)"
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "24"
+
+      - name: Pre-package the extension
+        run: |
+          npm install -g @vscode/vsce
+          cd publish-vscode-extension/tests/fixtures/sample-extension
+          vsce package --out test-extension-0.0.1.vsix
 
       - name: Publish (dry run)
         id: publish
         uses: ./publish-vscode-extension
         with:
           pat: fake-pat-for-testing
-          packagePath: publish-vscode-extension/tests/fixtures/sample-extension
-          dryRun: 'true'
+          extensionFile: publish-vscode-extension/tests/fixtures/sample-extension/test-extension-0.0.1.vsix
+          dryRun: "true"
 
-      - name: Verify VSIX was created
+      - name: Verify VSIX exists
         run: |
           VSIX_PATH="${{ steps.publish.outputs.vsixPath }}"
           if [[ ! -f "$VSIX_PATH" ]]; then
             echo "::error::VSIX file not found at $VSIX_PATH"
             exit 1
           fi
-          echo "VSIX created on macOS: $VSIX_PATH"
+          echo "VSIX verified on macOS: $VSIX_PATH"

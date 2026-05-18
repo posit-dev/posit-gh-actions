@@ -1,202 +1,68 @@
-name: 'Publish VS Code Extension'
-description: 'Publish a VS Code extension to the VS Marketplace (using vsce) or the Open VSX Registry (using ovsx).'
+name: "Publish VS Code Extension"
+description: "Publish a pre-built VS Code extension (.vsix) to the VS Marketplace or the Open VSX Registry."
 
 inputs:
   pat:
-    description: 'Personal access token.'
+    description: "Personal access token."
     required: true
   extensionFile:
-    description: 'Path to the vsix file to be published. Cannot be used together with packagePath.'
-    required: false
+    description: "Path to the .vsix file to publish."
+    required: true
   registryUrl:
-    description: 'Use the registry API at this base URL.'
+    description: "Registry URL. Use 'https://marketplace.visualstudio.com' for VS Marketplace, or an Open VSX registry URL."
     required: false
-    default: 'https://open-vsx.org'
-  packagePath:
-    description: 'Path to the extension to be packaged and published. Cannot be used together with extensionFile.'
-    required: false
-    default: './'
-  baseContentUrl:
-    description: 'Prepend all relative links in README.md with this URL.'
-    required: false
-  baseImagesUrl:
-    description: 'Prepend all relative image links in README.md with this URL.'
-    required: false
-  yarn:
-    description: 'Use yarn instead of npm while packing extension files.'
-    required: false
-    default: 'false'
-  dryRun:
-    description: 'Set to "true" to package the extension but do not publish it.'
-    required: false
-    default: 'false'
-  noVerify:
-    description: 'Allow publishing extensions which use a proposed API (enableProposedApi: true).'
-    required: false
-    default: 'false'
-  preRelease:
-    description: 'Mark this version as a Pre-Release.'
-    required: false
-    default: 'false'
-  dependencies:
-    description: 'Check that dependencies defined in package.json exist in node_modules. Set to false if using pnpm or yarn v2+ with PnP.'
-    required: false
-    default: 'true'
+    default: "https://open-vsx.org"
   skipDuplicate:
-    description: 'Fail silently if version already exists on the marketplace.'
+    description: "Fail silently if this version already exists on the registry."
     required: false
-    default: 'false'
-  target:
-    description: 'Target architecture(s) the extension should run on (space-separated).'
+    default: "false"
+  dryRun:
+    description: 'Set to "true" to skip publishing (useful for CI testing).'
     required: false
-    default: ''
+    default: "false"
 
 outputs:
   vsixPath:
-    description: 'The path to the packaged and/or published VSIX file.'
-    value: ${{ steps.package.outputs.vsixPath }}
+    description: "The path to the published VSIX file."
+    value: ${{ inputs.extensionFile }}
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
-    - name: Install vsce and ovsx
-      shell: bash
-      run: npm install -g @vscode/vsce ovsx
-
-    - name: Package extension
-      id: package
+    - name: Validate extension file
       shell: bash
       env:
-        INPUT_EXTENSION_FILE: ${{ inputs.extensionFile }}
-        INPUT_PACKAGE_PATH: ${{ inputs.packagePath }}
-        INPUT_BASE_CONTENT_URL: ${{ inputs.baseContentUrl }}
-        INPUT_BASE_IMAGES_URL: ${{ inputs.baseImagesUrl }}
-        INPUT_YARN: ${{ inputs.yarn }}
-        INPUT_PRE_RELEASE: ${{ inputs.preRelease }}
-        INPUT_DEPENDENCIES: ${{ inputs.dependencies }}
-        INPUT_TARGET: ${{ inputs.target }}
+        EXTENSION_FILE: ${{ inputs.extensionFile }}
       run: |
-        # Validate mutual exclusivity of extensionFile and packagePath
-        if [[ -n "$INPUT_EXTENSION_FILE" && "$INPUT_PACKAGE_PATH" != "./" && "$INPUT_PACKAGE_PATH" != "." ]]; then
-          echo "::error::Cannot specify both 'extensionFile' and 'packagePath'. Please use only one."
+        if [[ ! -f "$EXTENSION_FILE" ]]; then
+          echo "::error::extensionFile not found at: $EXTENSION_FILE"
           exit 1
         fi
+        echo "Extension file found: $EXTENSION_FILE"
 
-        if [[ -n "$INPUT_EXTENSION_FILE" ]]; then
-          if [[ ! -f "$INPUT_EXTENSION_FILE" ]]; then
-            echo "::error::extensionFile not found at: $INPUT_EXTENSION_FILE"
-            exit 1
-          fi
-          echo "Extension already packaged at: $INPUT_EXTENSION_FILE"
-          echo "vsixPath=$INPUT_EXTENSION_FILE" >> "$GITHUB_OUTPUT"
-          exit 0
-        fi
-
-        # Read name and version from package.json
-        PACKAGE_JSON="$INPUT_PACKAGE_PATH/package.json"
-        if [[ ! -f "$PACKAGE_JSON" ]]; then
-          echo "::error::package.json not found at $PACKAGE_JSON"
-          exit 1
-        fi
-
-        NAME=$(jq -r '.name' "$PACKAGE_JSON")
-        VERSION=$(jq -r '.version' "$PACKAGE_JSON")
-        if [[ -z "$NAME" || "$NAME" == "null" || -z "$VERSION" || "$VERSION" == "null" ]]; then
-          echo "::error::package.json must contain 'name' and 'version' fields"
-          exit 1
-        fi
-
-        # Use absolute path for VSIX output so cd doesn't affect it
-        ABS_PACKAGE_PATH="$(cd "$INPUT_PACKAGE_PATH" && pwd)"
-        VSIX_PATH="$ABS_PACKAGE_PATH/$NAME-$VERSION.vsix"
-
-        cd "$INPUT_PACKAGE_PATH"
-
-        CMD=(vsce package --out "$VSIX_PATH")
-
-        if [[ "$INPUT_YARN" == "true" ]]; then
-          CMD+=(--yarn)
-        fi
-        if [[ -n "$INPUT_BASE_CONTENT_URL" ]]; then
-          CMD+=(--baseContentUrl "$INPUT_BASE_CONTENT_URL")
-        fi
-        if [[ -n "$INPUT_BASE_IMAGES_URL" ]]; then
-          CMD+=(--baseImagesUrl "$INPUT_BASE_IMAGES_URL")
-        fi
-        if [[ "$INPUT_PRE_RELEASE" == "true" ]]; then
-          CMD+=(--pre-release)
-        fi
-        if [[ "$INPUT_DEPENDENCIES" == "false" ]]; then
-          CMD+=(--no-dependencies)
-        fi
-        if [[ -n "$INPUT_TARGET" ]]; then
-          for t in $INPUT_TARGET; do
-            CMD+=(--target "$t")
-          done
-        fi
-
-        echo "Running: ${CMD[*]}"
-        "${CMD[@]}"
-
-        echo "vsixPath=$VSIX_PATH" >> "$GITHUB_OUTPUT"
+    - name: Install vsce and ovsx
+      if: inputs.dryRun != 'true'
+      shell: bash
+      run: npm install -g @vscode/vsce ovsx
 
     - name: Publish extension
       if: inputs.dryRun != 'true'
       shell: bash
       env:
-        INPUT_REGISTRY_URL: ${{ inputs.registryUrl }}
+        EXTENSION_FILE: ${{ inputs.extensionFile }}
+        REGISTRY_URL: ${{ inputs.registryUrl }}
         INPUT_PAT: ${{ inputs.pat }}
-        INPUT_YARN: ${{ inputs.yarn }}
-        INPUT_NO_VERIFY: ${{ inputs.noVerify }}
-        INPUT_PRE_RELEASE: ${{ inputs.preRelease }}
-        INPUT_DEPENDENCIES: ${{ inputs.dependencies }}
-        INPUT_SKIP_DUPLICATE: ${{ inputs.skipDuplicate }}
-        INPUT_TARGET: ${{ inputs.target }}
-        INPUT_BASE_CONTENT_URL: ${{ inputs.baseContentUrl }}
-        INPUT_BASE_IMAGES_URL: ${{ inputs.baseImagesUrl }}
-        VSIX_PATH: ${{ steps.package.outputs.vsixPath }}
+        SKIP_DUPLICATE: ${{ inputs.skipDuplicate }}
       run: |
-        REGISTRY_URL="${INPUT_REGISTRY_URL%/}"
+        REGISTRY_URL="${REGISTRY_URL%/}"
 
         if [[ "$REGISTRY_URL" == "https://marketplace.visualstudio.com" ]]; then
-          # Publish to VS Marketplace using vsce
-          CMD=(vsce publish --packagePath "$VSIX_PATH" --pat "$INPUT_PAT")
-
-          if [[ "$INPUT_YARN" == "true" ]]; then
-            CMD+=(--yarn)
-          fi
-          if [[ -n "$INPUT_BASE_CONTENT_URL" ]]; then
-            CMD+=(--baseContentUrl "$INPUT_BASE_CONTENT_URL")
-          fi
-          if [[ -n "$INPUT_BASE_IMAGES_URL" ]]; then
-            CMD+=(--baseImagesUrl "$INPUT_BASE_IMAGES_URL")
-          fi
-          if [[ "$INPUT_NO_VERIFY" == "true" ]]; then
-            CMD+=(--noVerify)
-          fi
-          if [[ "$INPUT_PRE_RELEASE" == "true" ]]; then
-            CMD+=(--pre-release)
-          fi
-          if [[ "$INPUT_DEPENDENCIES" == "false" ]]; then
-            CMD+=(--no-dependencies)
-          fi
-          if [[ "$INPUT_SKIP_DUPLICATE" == "true" ]]; then
+          CMD=(vsce publish --packagePath "$EXTENSION_FILE" --pat "$INPUT_PAT")
+          if [[ "$SKIP_DUPLICATE" == "true" ]]; then
             CMD+=(--skip-duplicate)
           fi
-          if [[ -n "$INPUT_TARGET" ]]; then
-            for t in $INPUT_TARGET; do
-              CMD+=(--target "$t")
-            done
-          fi
         else
-          # Publish to Open VSX using ovsx
-          CMD=(ovsx publish "$VSIX_PATH" --pat "$INPUT_PAT" --registryUrl "$REGISTRY_URL")
-
-          if [[ -n "$INPUT_TARGET" ]]; then
-            for t in $INPUT_TARGET; do
-              CMD+=(--target "$t")
-            done
-          fi
+          CMD=(ovsx publish "$EXTENSION_FILE" --pat "$INPUT_PAT" --registryUrl "$REGISTRY_URL")
         fi
 
         REDACTED_CMD="${CMD[*]}"
