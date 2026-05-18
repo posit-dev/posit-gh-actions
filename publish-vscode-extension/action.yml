@@ -77,7 +77,7 @@ runs:
         INPUT_TARGET: ${{ inputs.target }}
       run: |
         # Validate mutual exclusivity of extensionFile and packagePath
-        if [[ -n "$INPUT_EXTENSION_FILE" && "$INPUT_PACKAGE_PATH" != "./" ]]; then
+        if [[ -n "$INPUT_EXTENSION_FILE" && "$INPUT_PACKAGE_PATH" != "./" && "$INPUT_PACKAGE_PATH" != "." ]]; then
           echo "::error::Cannot specify both 'extensionFile' and 'packagePath'. Please use only one."
           exit 1
         fi
