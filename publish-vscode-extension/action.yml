@@ -65,7 +65,7 @@ runs:
       env:
         EXTENSION_FILE: ${{ inputs.extensionFile }}
         VSCE_PAT: ${{ inputs.pat }}
-        OVSX_PAT: ${{ inputs.pat }}
+        OVSX_TOKEN: ${{ inputs.pat }}
         SKIP_DUPLICATE: ${{ inputs.skipDuplicate }}
         RESOLVED_TOOL: ${{ steps.resolve.outputs.tool }}
         RESOLVED_REGISTRY_URL: ${{ steps.resolve.outputs.registryUrl }}

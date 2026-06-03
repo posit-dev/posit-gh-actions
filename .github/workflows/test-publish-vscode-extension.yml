@@ -83,15 +83,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-
-      - name: Pre-package the extension
-        run: |
-          npm install -g @vscode/vsce
-          cd publish-vscode-extension/tests/fixtures/sample-extension
-          vsce package --out test-extension-0.0.1.vsix
+      - name: Create dummy VSIX
+        run: touch publish-vscode-extension/tests/fixtures/sample-extension/test-extension-0.0.1.vsix
 
       - name: Publish to VS Marketplace (dry run)
         id: publish
@@ -117,15 +110,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-
-      - name: Pre-package the extension
-        run: |
-          npm install -g @vscode/vsce
-          cd publish-vscode-extension/tests/fixtures/sample-extension
-          vsce package --out test-extension-0.0.1.vsix
+      - name: Create dummy VSIX
+        run: touch publish-vscode-extension/tests/fixtures/sample-extension/test-extension-0.0.1.vsix
 
       - name: Publish to Open VSX (dry run)
         id: publish
@@ -151,15 +137,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-
-      - name: Pre-package the extension
-        run: |
-          npm install -g @vscode/vsce
-          cd publish-vscode-extension/tests/fixtures/sample-extension
-          vsce package --out test-extension-0.0.1.vsix
+      - name: Create dummy VSIX
+        run: touch publish-vscode-extension/tests/fixtures/sample-extension/test-extension-0.0.1.vsix
 
       - name: Publish with trailing slash (dry run)
         id: publish
