@@ -54,6 +54,16 @@ The default `registryUrl` is `https://open-vsx.org`, so you can omit it when pub
 | `vsixPath` | Path to the published `.vsix` file (same as `extensionFile` input) |
 | `resolvedTool` | The CLI tool resolved for publishing (`vsce` or `ovsx`) |
 
+## Versioning
+
+This action follows a major-version tag strategy (e.g., `@v1`). Pin to the major version for stability:
+
+```yaml
+- uses: posit-dev/posit-gh-actions/publish-vscode-extension@v1
+```
+
+Breaking changes will bump the major version. Non-breaking improvements and bug fixes are released under the same major tag. See [CHANGELOG.md](./CHANGELOG.md) for release history.
+
 ## Migrating from HaaLeo/publish-vscode-extension
 
 This action requires a pre-built `.vsix` file. If you were using `packagePath` with the HaaLeo action, add a packaging step before calling this action:

@@ -59,11 +59,6 @@ runs:
           echo "registryUrl=$REGISTRY_URL" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Install vsce and ovsx
-      if: inputs.dryRun != 'true'
-      shell: bash
-      run: npm install -g @vscode/vsce ovsx
-
     - name: Publish extension
       if: inputs.dryRun != 'true'
       shell: bash
@@ -77,9 +72,9 @@ runs:
       run: |
         set -euo pipefail
         if [[ "$RESOLVED_TOOL" == "vsce" ]]; then
-          CMD=(vsce publish --packagePath "$EXTENSION_FILE")
+          CMD=(npx --yes @vscode/vsce publish --packagePath "$EXTENSION_FILE")
         else
-          CMD=(ovsx publish "$EXTENSION_FILE" --registryUrl "$RESOLVED_REGISTRY_URL")
+          CMD=(npx --yes ovsx publish "$EXTENSION_FILE" --registryUrl "$RESOLVED_REGISTRY_URL")
         fi
         if [[ "$SKIP_DUPLICATE" == "true" ]]; then
           CMD+=(--skip-duplicate)
