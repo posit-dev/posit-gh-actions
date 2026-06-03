@@ -25,6 +25,9 @@ outputs:
   vsixPath:
     description: "The path to the published VSIX file."
     value: ${{ inputs.extensionFile }}
+  resolvedTool:
+    description: "The CLI tool resolved for publishing (vsce or ovsx)."
+    value: ${{ steps.resolve.outputs.tool }}
 
 runs:
   using: "composite"
@@ -34,11 +37,27 @@ runs:
       env:
         EXTENSION_FILE: ${{ inputs.extensionFile }}
       run: |
+        set -euo pipefail
         if [[ ! -f "$EXTENSION_FILE" ]]; then
           echo "::error::extensionFile not found at: $EXTENSION_FILE"
           exit 1
         fi
         echo "Extension file found: $EXTENSION_FILE"
+
+    - name: Resolve publish configuration
+      id: resolve
+      shell: bash
+      env:
+        REGISTRY_URL: ${{ inputs.registryUrl }}
+      run: |
+        set -euo pipefail
+        REGISTRY_URL="${REGISTRY_URL%/}"
+        if [[ "$REGISTRY_URL" == "https://marketplace.visualstudio.com" ]]; then
+          echo "tool=vsce" >> "$GITHUB_OUTPUT"
+        else
+          echo "tool=ovsx" >> "$GITHUB_OUTPUT"
+          echo "registryUrl=$REGISTRY_URL" >> "$GITHUB_OUTPUT"
+        fi
 
     - name: Install vsce and ovsx
       if: inputs.dryRun != 'true'
@@ -50,25 +69,20 @@ runs:
       shell: bash
       env:
         EXTENSION_FILE: ${{ inputs.extensionFile }}
-        REGISTRY_URL: ${{ inputs.registryUrl }}
-        INPUT_PAT: ${{ inputs.pat }}
+        VSCE_PAT: ${{ inputs.pat }}
+        OVSX_PAT: ${{ inputs.pat }}
         SKIP_DUPLICATE: ${{ inputs.skipDuplicate }}
+        RESOLVED_TOOL: ${{ steps.resolve.outputs.tool }}
+        RESOLVED_REGISTRY_URL: ${{ steps.resolve.outputs.registryUrl }}
       run: |
-        REGISTRY_URL="${REGISTRY_URL%/}"
-
-        if [[ "$REGISTRY_URL" == "https://marketplace.visualstudio.com" ]]; then
-          CMD=(vsce publish --packagePath "$EXTENSION_FILE" --pat "$INPUT_PAT")
-          if [[ "$SKIP_DUPLICATE" == "true" ]]; then
-            CMD+=(--skip-duplicate)
-          fi
+        set -euo pipefail
+        if [[ "$RESOLVED_TOOL" == "vsce" ]]; then
+          CMD=(vsce publish --packagePath "$EXTENSION_FILE")
         else
-          CMD=(ovsx publish "$EXTENSION_FILE" --pat "$INPUT_PAT" --registryUrl "$REGISTRY_URL")
-          if [[ "$SKIP_DUPLICATE" == "true" ]]; then
-            CMD+=(--skip-duplicate)
-          fi
+          CMD=(ovsx publish "$EXTENSION_FILE" --registryUrl "$RESOLVED_REGISTRY_URL")
         fi
-
-        REDACTED_CMD="${CMD[*]}"
-        REDACTED_CMD="${REDACTED_CMD//"$INPUT_PAT"/***}"
-        echo "Running: $REDACTED_CMD"
+        if [[ "$SKIP_DUPLICATE" == "true" ]]; then
+          CMD+=(--skip-duplicate)
+        fi
+        echo "Running: ${CMD[*]}"
         "${CMD[@]}"

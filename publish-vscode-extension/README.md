@@ -16,7 +16,9 @@ This replaces [`HaaLeo/publish-vscode-extension@v2`](https://github.com/HaaLeo/p
     registryUrl: https://marketplace.visualstudio.com
 ```
 
-### Publish to Open VSX
+### Publish to Open VSX (default)
+
+The default `registryUrl` is `https://open-vsx.org`, so you can omit it when publishing to Open VSX:
 
 ```yaml
 - uses: posit-dev/posit-gh-actions/publish-vscode-extension@main
@@ -50,6 +52,7 @@ This replaces [`HaaLeo/publish-vscode-extension@v2`](https://github.com/HaaLeo/p
 | Output | Description |
 |--------|-------------|
 | `vsixPath` | Path to the published `.vsix` file (same as `extensionFile` input) |
+| `resolvedTool` | The CLI tool resolved for publishing (`vsce` or `ovsx`) |
 
 ## Migrating from HaaLeo/publish-vscode-extension
 

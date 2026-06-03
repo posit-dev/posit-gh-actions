@@ -19,7 +19,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "20"
 
       - name: Pre-package the extension
         run: |
@@ -60,7 +60,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "20"
 
       - name: Attempt to publish nonexistent file
         id: publish
@@ -79,6 +79,108 @@ jobs:
           fi
           echo "Correctly failed on missing extensionFile"
 
+  test-resolves-vsce-for-marketplace:
+    name: "Test: resolves vsce tool for VS Marketplace"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Pre-package the extension
+        run: |
+          npm install -g @vscode/vsce
+          cd publish-vscode-extension/tests/fixtures/sample-extension
+          vsce package --out test-extension-0.0.1.vsix
+
+      - name: Publish to VS Marketplace (dry run)
+        id: publish
+        uses: ./publish-vscode-extension
+        with:
+          pat: fake-pat-for-testing
+          extensionFile: publish-vscode-extension/tests/fixtures/sample-extension/test-extension-0.0.1.vsix
+          registryUrl: https://marketplace.visualstudio.com
+          dryRun: "true"
+
+      - name: Verify resolved tool is vsce
+        run: |
+          TOOL="${{ steps.publish.outputs.resolvedTool }}"
+          if [[ "$TOOL" != "vsce" ]]; then
+            echo "::error::Expected resolvedTool 'vsce', got '$TOOL'"
+            exit 1
+          fi
+          echo "Correctly resolved tool: $TOOL"
+
+  test-resolves-ovsx-for-open-vsx:
+    name: "Test: resolves ovsx tool for Open VSX"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Pre-package the extension
+        run: |
+          npm install -g @vscode/vsce
+          cd publish-vscode-extension/tests/fixtures/sample-extension
+          vsce package --out test-extension-0.0.1.vsix
+
+      - name: Publish to Open VSX (dry run)
+        id: publish
+        uses: ./publish-vscode-extension
+        with:
+          pat: fake-pat-for-testing
+          extensionFile: publish-vscode-extension/tests/fixtures/sample-extension/test-extension-0.0.1.vsix
+          registryUrl: https://open-vsx.org
+          dryRun: "true"
+
+      - name: Verify resolved tool is ovsx
+        run: |
+          TOOL="${{ steps.publish.outputs.resolvedTool }}"
+          if [[ "$TOOL" != "ovsx" ]]; then
+            echo "::error::Expected resolvedTool 'ovsx', got '$TOOL'"
+            exit 1
+          fi
+          echo "Correctly resolved tool: $TOOL"
+
+  test-trailing-slash-normalization:
+    name: "Test: trailing slash in registryUrl is normalized"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Pre-package the extension
+        run: |
+          npm install -g @vscode/vsce
+          cd publish-vscode-extension/tests/fixtures/sample-extension
+          vsce package --out test-extension-0.0.1.vsix
+
+      - name: Publish with trailing slash (dry run)
+        id: publish
+        uses: ./publish-vscode-extension
+        with:
+          pat: fake-pat-for-testing
+          extensionFile: publish-vscode-extension/tests/fixtures/sample-extension/test-extension-0.0.1.vsix
+          registryUrl: https://marketplace.visualstudio.com/
+          dryRun: "true"
+
+      - name: Verify resolved tool is vsce despite trailing slash
+        run: |
+          TOOL="${{ steps.publish.outputs.resolvedTool }}"
+          if [[ "$TOOL" != "vsce" ]]; then
+            echo "::error::Expected resolvedTool 'vsce' after trailing slash normalization, got '$TOOL'"
+            exit 1
+          fi
+          echo "Trailing slash correctly normalized, resolved tool: $TOOL"
+
   test-on-windows:
     name: "Test: publish on Windows (dry run)"
     runs-on: windows-latest
@@ -87,7 +189,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "20"
 
       - name: Pre-package the extension
         run: |
@@ -121,7 +223,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "20"
 
       - name: Pre-package the extension
         run: |
