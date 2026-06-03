@@ -37,6 +37,16 @@ The default `registryUrl` is `https://open-vsx.org`, so you can omit it when pub
     dryRun: 'true'
 ```
 
+## Prerequisites
+
+Node.js (and `npx`) must be available in the runner environment. Most workflows already include `actions/setup-node`; if yours doesn't, add it before calling this action:
+
+```yaml
+- uses: actions/setup-node@v4
+  with:
+    node-version: "20"
+```
+
 ## Inputs
 
 | Input | Description | Required | Default |
