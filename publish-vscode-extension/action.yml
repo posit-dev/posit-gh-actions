@@ -72,9 +72,9 @@ runs:
       run: |
         set -euo pipefail
         if [[ "$RESOLVED_TOOL" == "vsce" ]]; then
-          CMD=(npx --yes @vscode/vsce@2 publish --packagePath "$EXTENSION_FILE")
+          CMD=(npx --yes @vscode/vsce@3 publish --packagePath "$EXTENSION_FILE")
         else
-          CMD=(npx --yes ovsx@0 publish "$EXTENSION_FILE" --registryUrl "$RESOLVED_REGISTRY_URL")
+          CMD=(npx --yes ovsx@1 publish "$EXTENSION_FILE" --registryUrl "$RESOLVED_REGISTRY_URL")
         fi
         if [[ "$SKIP_DUPLICATE" == "true" ]]; then
           CMD+=(--skip-duplicate)
