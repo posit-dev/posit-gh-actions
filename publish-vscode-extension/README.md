@@ -44,7 +44,7 @@ Node.js (and `npx`) must be available in the runner environment. Most workflows 
 ```yaml
 - uses: actions/setup-node@v4
   with:
-    node-version: "24"
+    node-version: "22"
 ```
 
 ## Inputs
