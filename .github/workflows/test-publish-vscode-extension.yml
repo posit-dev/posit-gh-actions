@@ -179,6 +179,40 @@ jobs:
           fi
           echo "Trailing slash correctly normalized, resolved tool: $TOOL"
 
+  test-path-with-spaces:
+    name: "Test: extensionFile path with spaces"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Pre-package the extension into a path with spaces
+        run: |
+          npm install -g @vscode/vsce
+          mkdir -p "publish-vscode-extension/tests/fixtures/path with spaces"
+          cd publish-vscode-extension/tests/fixtures/sample-extension
+          vsce package --out "../path with spaces/test extension-0.0.1.vsix"
+
+      - name: Publish (dry run)
+        id: publish
+        uses: ./publish-vscode-extension
+        with:
+          pat: fake-pat-for-testing
+          extensionFile: "publish-vscode-extension/tests/fixtures/path with spaces/test extension-0.0.1.vsix"
+          dryRun: "true"
+
+      - name: Verify output path with spaces
+        run: |
+          VSIX_PATH="${{ steps.publish.outputs.vsixPath }}"
+          if [[ ! -f "$VSIX_PATH" ]]; then
+            echo "::error::VSIX file not found at '$VSIX_PATH'"
+            exit 1
+          fi
+          echo "VSIX verified at path with spaces: $VSIX_PATH"
+
   test-on-windows:
     name: "Test: publish on Windows (dry run)"
     runs-on: windows-latest
