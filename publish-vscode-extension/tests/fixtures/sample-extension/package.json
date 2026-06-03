@@ -10,5 +10,6 @@
   "categories": [
     "Other"
   ],
+  "activationEvents": [],
   "main": "./extension.js"
 }
