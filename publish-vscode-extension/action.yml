@@ -1,0 +1,83 @@
+name: "Publish VS Code Extension"
+description: "Publish a pre-built VS Code extension (.vsix) to the VS Marketplace or the Open VSX Registry."
+
+inputs:
+  pat:
+    description: "Personal access token."
+    required: true
+  extensionFile:
+    description: "Path to the .vsix file to publish."
+    required: true
+  registryUrl:
+    description: "Registry URL. Use 'https://marketplace.visualstudio.com' for VS Marketplace, or an Open VSX registry URL."
+    required: false
+    default: "https://open-vsx.org"
+  skipDuplicate:
+    description: "Fail silently if this version already exists on the registry."
+    required: false
+    default: "false"
+  dryRun:
+    description: 'Set to "true" to skip publishing (useful for CI testing).'
+    required: false
+    default: "false"
+
+outputs:
+  vsixPath:
+    description: "The path to the published VSIX file."
+    value: ${{ inputs.extensionFile }}
+  resolvedTool:
+    description: "The CLI tool resolved for publishing (vsce or ovsx)."
+    value: ${{ steps.resolve.outputs.tool }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Validate extension file
+      shell: bash
+      env:
+        EXTENSION_FILE: ${{ inputs.extensionFile }}
+      run: |
+        set -euo pipefail
+        if [[ ! -f "$EXTENSION_FILE" ]]; then
+          echo "::error::extensionFile not found at: $EXTENSION_FILE"
+          exit 1
+        fi
+        echo "Extension file found: $EXTENSION_FILE"
+
+    - name: Resolve publish configuration
+      id: resolve
+      shell: bash
+      env:
+        REGISTRY_URL: ${{ inputs.registryUrl }}
+      run: |
+        set -euo pipefail
+        REGISTRY_URL="${REGISTRY_URL%/}"
+        if [[ "$REGISTRY_URL" == "https://marketplace.visualstudio.com" ]]; then
+          echo "tool=vsce" >> "$GITHUB_OUTPUT"
+        else
+          echo "tool=ovsx" >> "$GITHUB_OUTPUT"
+          echo "registryUrl=$REGISTRY_URL" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Publish extension
+      if: inputs.dryRun != 'true'
+      shell: bash
+      env:
+        EXTENSION_FILE: ${{ inputs.extensionFile }}
+        VSCE_PAT: ${{ inputs.pat }}
+        OVSX_TOKEN: ${{ inputs.pat }}
+        SKIP_DUPLICATE: ${{ inputs.skipDuplicate }}
+        RESOLVED_TOOL: ${{ steps.resolve.outputs.tool }}
+        RESOLVED_REGISTRY_URL: ${{ steps.resolve.outputs.registryUrl }}
+      run: |
+        set -euo pipefail
+        if [[ "$RESOLVED_TOOL" == "vsce" ]]; then
+          CMD=(npx --yes @vscode/vsce@3 publish --packagePath "$EXTENSION_FILE")
+        else
+          CMD=(npx --yes ovsx@1 publish "$EXTENSION_FILE" --registryUrl "$RESOLVED_REGISTRY_URL")
+        fi
+        if [[ "$SKIP_DUPLICATE" == "true" ]]; then
+          CMD+=(--skip-duplicate)
+        fi
+        echo "Running: ${CMD[*]}"
+        "${CMD[@]}"

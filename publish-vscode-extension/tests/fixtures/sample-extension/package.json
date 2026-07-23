@@ -1,0 +1,15 @@
+{
+  "name": "test-extension",
+  "displayName": "Test Extension",
+  "description": "A minimal extension for testing the publish action",
+  "version": "0.0.1",
+  "publisher": "posit-dev",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./extension.js"
+}
