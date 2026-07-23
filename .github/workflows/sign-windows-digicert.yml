@@ -25,7 +25,7 @@ jobs:
       SM_HOST: ${{ secrets.SM_HOST_2026 }}
       SM_API_KEY: ${{ secrets.SM_API_KEY_2026 }}
       SM_CLIENT_CERT_PASSWORD: ${{ secrets.SM_CLIENT_CERT_PASSWORD_2026 }}
-      KEYPAIR_ALIAS: ${{ secrets.SM_KEYPAIR_2026 }}
+      KEYPAIR_ALIAS: ${{ secrets.SM_KEYPAIR_ALIAS_2026 }}
       # SM_CLIENT_CERT_FILE is set dynamically below.
 
     steps:
