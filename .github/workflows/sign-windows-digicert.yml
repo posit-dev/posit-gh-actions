@@ -1,0 +1,151 @@
+name: "Sign Windows Executable (DigiCert KeyLocker)"
+
+on:
+  workflow_call:
+    inputs:
+      unsigned_artifact_name:
+        description: "Name of the artifact containing the unsigned executable"
+        required: true
+        type: string
+      signed_artifact_name:
+        description: "Name for the output artifact containing the signed executable"
+        required: true
+        type: string
+
+jobs:
+  sign-windows:
+    name: Sign Windows Executable
+    # 22.04: known-good pairing of osslsigncode and the packaged PKCS11 engine.
+    # Newer Ubuntu images have a known incompatibility in the PKCS#11 tooling.
+    runs-on: ubuntu-22.04
+
+    env:
+      # The _2026 suffix lives only in the secret names; the DigiCert tools
+      # read the exact unsuffixed env var names below.
+      SM_HOST: ${{ secrets.SM_HOST_2026 }}
+      SM_API_KEY: ${{ secrets.SM_API_KEY_2026 }}
+      SM_CLIENT_CERT_PASSWORD: ${{ secrets.SM_CLIENT_CERT_PASSWORD_2026 }}
+      KEYPAIR_ALIAS: ${{ secrets.SM_KEYPAIR_2026 }}
+      # SM_CLIENT_CERT_FILE is set dynamically below.
+
+    steps:
+      - name: Guard - SM_HOST must be the clientauth mTLS host
+        run: |
+          if [ "$SM_HOST" != "https://clientauth.one.digicert.com" ]; then
+            echo "::error::SM_HOST is '$SM_HOST' but must be https://clientauth.one.digicert.com -"\
+                 "signing requires the mTLS host; other hosts fail with MFA errors."
+            exit 1
+          fi
+          echo "SM_HOST OK: $SM_HOST"
+
+      - name: Download unsigned executable
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.unsigned_artifact_name }}
+          path: unsigned
+
+      - name: Locate the unsigned executable
+        run: |
+          EXE=$(find unsigned -type f -name "*.exe" | head -n1)
+          if [ -z "$EXE" ]; then
+            echo "::error::No .exe file found in artifact '${{ inputs.unsigned_artifact_name }}'"
+            exit 1
+          fi
+          echo "Found executable: $EXE"
+          echo "UNSIGNED_EXE=$EXE" >> "$GITHUB_ENV"
+
+      - name: Decode client certificate from base64 secret
+        shell: bash
+        run: |
+          CERT_PATH="$RUNNER_TEMP/sm_client_cert.p12"
+          echo "${{ secrets.SM_CLIENT_CERT_FILE_B64_2026 }}" | base64 --decode > "$CERT_PATH"
+          echo "SM_CLIENT_CERT_FILE=$CERT_PATH" >> "$GITHUB_ENV"
+
+      - name: Setup Software Trust Manager
+        id: stm-setup
+        uses: digicert/code-signing-software-trust-action@v1
+
+      - name: Health check
+        run: smctl healthcheck
+
+      - name: List available keypairs
+        run: smctl keypair ls
+
+      - name: Install osslsigncode and PKCS11 engine
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y osslsigncode libengine-pkcs11-openssl
+          osslsigncode --version
+
+      - name: Locate PKCS11 engine and DigiCert PKCS11 module
+        run: |
+          CONFIG="${{ steps.stm-setup.outputs.PKCS11_CONFIG }}"
+          echo "PKCS11 config file: $CONFIG"
+          cat "$CONFIG"
+          MODULE=$(grep -oP '(?<=library=)[^ ]+' "$CONFIG" | tr -d '"' | head -n1)
+          ENGINE=$(find /usr/lib/*/engines-* /usr/lib/engines-* -iname "libpkcs11.so" 2>/dev/null | head -n1)
+          echo "PKCS11 engine: $ENGINE"
+          echo "PKCS11 module: $MODULE"
+          if [ -z "$ENGINE" ] || [ -z "$MODULE" ]; then
+            echo "::error::Could not locate PKCS11 engine or module"
+            exit 1
+          fi
+          echo "PKCS11_ENGINE=$ENGINE" >> "$GITHUB_ENV"
+          echo "PKCS11_MODULE=$MODULE" >> "$GITHUB_ENV"
+
+      - name: Download certificate for the keypair and build full chain
+        run: |
+          smctl certificate download \
+            --keypair-alias="$KEYPAIR_ALIAS" \
+            --format=pem \
+            --name=cert \
+            --out="$PWD"
+          if head -c 100 cert | grep -q "BEGIN CERTIFICATE"; then
+            mv cert cert.pem
+          else
+            openssl x509 -inform der -in cert -out cert.pem
+          fi
+          openssl x509 -in cert.pem -noout -subject -issuer -dates
+
+          # Fetch the issuing intermediate (matching the issuer CN on the leaf)
+          # and append it so the chain gets embedded in the signature.
+          curl -fsSL -o intermediate.pem \
+            https://cacerts.digicert.com/DigiCertTrustedG4CodeSigningRSA4096SHA3842021CA1.crt.pem
+          openssl x509 -in intermediate.pem -noout -subject
+          cat cert.pem intermediate.pem > chain.pem
+          grep -c "BEGIN CERTIFICATE" chain.pem   # expect 2
+
+      - name: Sign the binary with osslsigncode (PKCS11)
+        run: |
+          mkdir -p signed
+          SIGNED_EXE="signed/$(basename "$UNSIGNED_EXE")"
+          osslsigncode sign \
+            -pkcs11engine "$PKCS11_ENGINE" \
+            -pkcs11module "$PKCS11_MODULE" \
+            -certs chain.pem \
+            -key "pkcs11:object=$KEYPAIR_ALIAS;type=private" \
+            -h sha256 \
+            -t http://timestamp.digicert.com \
+            -in "$UNSIGNED_EXE" \
+            -out "$SIGNED_EXE"
+          echo "SIGNED_EXE=$SIGNED_EXE" >> "$GITHUB_ENV"
+
+      - name: Verify the signature
+        run: |
+          osslsigncode verify \
+            -CAfile /etc/ssl/certs/ca-certificates.crt \
+            -in "$SIGNED_EXE"
+
+      - name: Dump DigiCert client logs on failure
+        if: failure()
+        run: |
+          for f in $(find "$HOME" \( -path "*signingmanager*" -o -ipath "*digicert*" \) -name "*.log" 2>/dev/null); do
+            echo "===== $f ====="
+            tail -n 50 "$f"
+          done
+
+      - name: Upload signed executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.signed_artifact_name }}
+          path: ${{ env.SIGNED_EXE }}
