@@ -39,7 +39,7 @@ jobs:
           echo "SM_HOST OK: $SM_HOST"
 
       - name: Download unsigned executable
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.unsigned_artifact_name }}
           path: unsigned
@@ -145,7 +145,7 @@ jobs:
           done
 
       - name: Upload signed executable
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.signed_artifact_name }}
           path: ${{ env.SIGNED_EXE }}
